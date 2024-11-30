@@ -42,6 +42,9 @@ io.on('connection', (socket) => {
   });
 
   socket.on('disconnect', () => {
+    console.log('Client Disconnected: ', myPeerId);
+    socket.broadcast.emit('user-disconnected', myPeerId)
+
     const userRoom = rooms.get(socket.id);
     if (userRoom) {
       console.log(`👋 User ${socket.id} disconnected from room ${userRoom.roomId}`);

@@ -39,14 +39,14 @@ navigator.mediaDevices.getUserMedia({
   socket.on('signal', (userId, signal) => {
     console.log('📡 Received signal from:', userId);
 
-    if (!peers[userId]) {
-      console.log('No peer found for:', userId);
-      return;
-    }
-    try {
-        peers[userId].signal(signal);
-    } catch (err) {
-        console.error('Failed to handle signal:', err);
+    if (peers[userId] && !peers[userId].destroyed) {
+        try {
+            peers[userId].signal(signal);
+        } catch (err) {
+            console.error('Error signaling peer:', err);
+        }
+    } else {
+        console.warn('⚠️ Signal received for a destroyed or non-existent peer:', userId);
     }
 
     if (peers[userId]) {
@@ -83,9 +83,9 @@ navigator.mediaDevices.getUserMedia({
   socket.on('user-disconnected', (userId) => {
     console.log('👋 User disconnected:', userId);
     if (peers[userId]) {
-      peers[userId].destroy();
-      delete peers[userId];
-      removeVideoStream(userId);
+        peers[userId].destroy();
+        delete peers[userId]; // Remove the reference
+        removeVideoStream(userId);
     }
   });
 });
