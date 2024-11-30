@@ -40,56 +40,42 @@
 // }
 
 
-const socket = io('http://localhost:3000');
+// Replace this line at the top of script.js
+// Instead of const socket = io('http://localhost:3000');
+const socket = io('/'); // This will automatically match your server's protocol and domain
+
 const videoGrid = document.getElementById('video-grid');
 const peers = {};
 
-// Generate a random room ID (you can modify this to use custom room IDs)
+// Generate a random room ID and peer ID
 const roomId = 'default-room';
 const myPeerId = Math.random().toString(36).substring(7);
+
+console.log('🆔 My peer ID:', myPeerId);
+
+let myStream;
 
 // Get user's media stream
 navigator.mediaDevices.getUserMedia({
   video: true,
   audio: true
-}).then((myStream) => {
-  addVideoStream(myStream, 'me');
+}).then((stream) => {
+  console.log('📹 Got local stream');
+  myStream = stream;
+  addVideoStream(stream, 'me');
 
   socket.emit('join-room', roomId, myPeerId);
+  console.log('🚪 Joined room:', roomId);
 
-  // Handle existing users in the room
-  socket.on('existing-users', (users) => {
-    users.forEach(userId => {
-      const peer = createPeer(userId, myPeerId, myStream);
-      peers[userId] = peer;
-    });
-  });
-
-  // Handle new user connections
+  // Handle incoming peer connections
   socket.on('user-connected', (userId, socketId) => {
-    console.log('New user connected:', userId);
-    const peer = createPeer(socketId, myPeerId, myStream);
-    peers[socketId] = peer;
-  });
-
-  // Handle incoming signals
-  socket.on('signal', (userId, signal) => {
-    if (peers[userId]) {
-      peers[userId].signal(signal);
-    }
-  });
-
-  // Handle user disconnection
-  socket.on('user-disconnected', (userId) => {
-    if (peers[userId]) {
-      peers[userId].destroy();
-      delete peers[userId];
-      removeVideoStream(userId);
-    }
+    console.log('🆕 New user connected:', userId, socketId);
+    connectToNewUser(socketId, stream);
   });
 });
 
-function createPeer(userToSignal, myId, stream) {
+function connectToNewUser(userId, stream) {
+  console.log('Connecting to new user:', userId);
   const peer = new SimplePeer({
     initiator: true,
     trickle: false,
@@ -97,15 +83,50 @@ function createPeer(userToSignal, myId, stream) {
   });
 
   peer.on('signal', signal => {
-    socket.emit('signal', userToSignal, signal);
+    console.log('Sending signal to:', userId);
+    socket.emit('signal', userId, signal);
   });
 
   peer.on('stream', remoteStream => {
-    addVideoStream(remoteStream, userToSignal);
+    console.log('Received remote stream from:', userId);
+    addVideoStream(remoteStream, userId);
   });
 
-  return peer;
+  peers[userId] = peer;
 }
+
+socket.on('signal', (userId, signal) => {
+  console.log('Received signal from:', userId);
+  if (!peers[userId]) {
+    const peer = new SimplePeer({
+      initiator: false,
+      trickle: false,
+      stream: myStream
+    });
+
+    peer.on('signal', signal => {
+      socket.emit('signal', userId, signal);
+    });
+
+    peer.on('stream', remoteStream => {
+      console.log('Adding remote stream from:', userId);
+      addVideoStream(remoteStream, userId);
+    });
+
+    peers[userId] = peer;
+  }
+
+  peers[userId].signal(signal);
+});
+
+socket.on('user-disconnected', userId => {
+  console.log('User disconnected:', userId);
+  if (peers[userId]) {
+    peers[userId].destroy();
+    delete peers[userId];
+    removeVideoStream(userId);
+  }
+});
 
 function addVideoStream(stream, userId) {
   const video = document.createElement('video');
@@ -123,3 +144,12 @@ function removeVideoStream(userId) {
     video.remove();
   }
 }
+
+// Debug events
+socket.on('connect', () => {
+  console.log('Connected to server with ID:', socket.id);
+});
+
+socket.on('connect_error', (error) => {
+  console.error('Connection error:', error);
+});

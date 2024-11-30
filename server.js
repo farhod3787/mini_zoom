@@ -29,52 +29,52 @@
 // });
 
 const express = require('express');
-const http = require('http');
+const https = require('https');
 const { Server } = require('socket.io');
+const fs = require('fs');
 
 const app = express();
-const server = http.createServer(app);
-const io = new Server(server);
+
+const server = https.createServer(app);
+const io = new Server(server, {
+  cors: {
+    origin: "*",
+    methods: ["GET", "POST"]
+  }
+});
 
 app.use(express.static('public'));
 
-const rooms = new Map(); // Track users in rooms
+const rooms = new Map();
 
 io.on('connection', (socket) => {
-  console.log('A user connected:', socket.id);
+  console.log('New user connected:', socket.id);
 
   socket.on('join-room', (roomId, userId) => {
+    console.log(`User ${userId} joining room ${roomId}`);
     socket.join(roomId);
     rooms.set(socket.id, { roomId, userId });
 
-    // Get all other users in the room
-    const usersInRoom = Array.from(io.sockets.adapter.rooms.get(roomId) || [])
-      .filter(id => id !== socket.id);
-
-    // Send list of existing users to the new participant
-    socket.emit('existing-users', usersInRoom);
-
-    // Notify others about new user
+    // Notify others in the room
     socket.to(roomId).emit('user-connected', userId, socket.id);
   });
 
   socket.on('signal', (userId, signalData) => {
-    const userRoom = rooms.get(socket.id);
-    if (userRoom) {
-      io.to(userRoom.roomId).emit('signal', userId, signalData);
-    }
+    console.log(`Signal from ${socket.id} to ${userId}`);
+    socket.to(userId).emit('signal', socket.id, signalData);
   });
 
   socket.on('disconnect', () => {
+    console.log('User disconnected:', socket.id);
     const userRoom = rooms.get(socket.id);
     if (userRoom) {
       socket.to(userRoom.roomId).emit('user-disconnected', socket.id);
       rooms.delete(socket.id);
     }
-    console.log('A user disconnected:', socket.id);
   });
 });
 
-server.listen(3000, () => {
-  console.log('Server is running on http://localhost:3000');
+const PORT = process.env.PORT || 3000;
+server.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
 });
