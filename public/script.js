@@ -38,6 +38,17 @@ navigator.mediaDevices.getUserMedia({
 
   socket.on('signal', (userId, signal) => {
     console.log('📡 Received signal from:', userId);
+
+    if (!peers[userId]) {
+      console.log('No peer found for:', userId);
+      return;
+    }
+    try {
+        peers[userId].signal(signal);
+    } catch (err) {
+        console.error('Failed to handle signal:', err);
+    }
+
     if (peers[userId]) {
       peers[userId].signal(signal);
     } else {
@@ -48,8 +59,17 @@ navigator.mediaDevices.getUserMedia({
         trickle: false,
         stream: myStream
       });
+
       peers[userId] = peer;
+
+      if (!peers[userId]) {
+        const peer = new SimplePeer({ initiator: false, trickle: false, stream: myStream });
+        peers[userId] = peer;
+        // Attach signal and stream handlers
+      }
+
       peer.on('signal', signal => {
+        console.log('--  Signal --  ', signal)
         socket.emit('signal', userId, signal);
       });
       peer.on('stream', remoteStream => {
