@@ -117,7 +117,8 @@ const cancel = () => {
 
 const copy = async() => {
     const roomid = document.getElementById("roomid").innerText;
-    await navigator.clipboard.writeText("http://localhost:3000/join/" + roomid);
+    const domen = "https://mini-zoom.onrender.com" // "http://localhost:3000"
+    await navigator.clipboard.writeText(domen + "/join/" + roomid);
 };
 const invitebox = () => {
     $("#getCodeModal").modal("show");
