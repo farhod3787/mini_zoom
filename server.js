@@ -1,59 +1,64 @@
-const express = require('express');
-const http = require('http');
-const { Server } = require('socket.io');
-
+const express = require("express");
 const app = express();
-const server = http.createServer(app);
-const io = new Server(server, {
-  cors: {
-    origin: "*", // Be more specific in production
-    methods: ["GET", "POST"]
-  }
+const server = require("http").Server(app);
+const { v4: uuidv4 } = require("uuid");
+const io = require("socket.io")(server);
+const { ExpressPeerServer } = require("peer");
+const url = require("url");
+const peerServer = ExpressPeerServer(server, {
+    debug: true,
+});
+const path = require("path");
+
+app.set("view engine", "ejs");
+app.use("/public", express.static(path.join(__dirname, "static")));
+app.use("/peerjs", peerServer);
+
+app.get("/", (req, res) => {
+    res.sendFile(path.join(__dirname, "static", "index.html"));
 });
 
-app.use(express.static('public'));
-
-const rooms = new Map();
-
-io.on('connection', (socket) => {
-  console.log('👤 New connection:', socket.id);
-
-  socket.on('join-room', (roomId, userId) => {
-    console.log(`👥 User ${userId} joining room ${roomId}`);
-    socket.join(roomId);
-    rooms.set(socket.id, { roomId, userId });
-
-    const usersInRoom = Array.from(io.sockets.adapter.rooms.get(roomId) || [])
-      .filter(id => id !== socket.id);
-
-    console.log(`📝 Existing users in room:`, usersInRoom);
-    socket.emit('existing-users', usersInRoom);
-
-    socket.to(roomId).emit('user-connected', userId, socket.id);
-    console.log(`📢 Broadcasted new user ${userId} to room ${roomId}`);
-  });
-
-  socket.on('signal', (userId, signalData) => {
-    console.log(`📡 Signal from ${socket.id} to ${userId}`);
-    const userRoom = rooms.get(socket.id);
-    if (userRoom) {
-      socket.to(userRoom.roomId).emit('signal', socket.id, signalData);
-    }
-  });
-
-  socket.on('disconnect', () => {
-    console.log('Client Disconnected: ', myPeerId);
-    socket.broadcast.emit('user-disconnected', myPeerId)
-
-    const userRoom = rooms.get(socket.id);
-    if (userRoom) {
-      console.log(`👋 User ${socket.id} disconnected from room ${userRoom.roomId}`);
-      socket.to(userRoom.roomId).emit('user-disconnected', socket.id);
-      rooms.delete(socket.id);
-    }
-  });
+app.get("/join", (req, res) => {
+    res.redirect(
+        url.format({
+            pathname: `/join/${uuidv4()}`,
+            query: req.query,
+        })
+    );
 });
 
-server.listen(3000, () => {
-  console.log('🚀 Server running on http://localhost:3000');
+app.get("/joinold", (req, res) => {
+    res.redirect(
+        url.format({
+            pathname: req.query.meeting_id,
+            query: req.query,
+        })
+    );
 });
+
+app.get("/join/:rooms", (req, res) => {
+    res.render("room", { roomid: req.params.rooms, Myname: req.query.name });
+});
+
+io.on("connection", (socket) => {
+    socket.on("join-room", (roomId, id, myname) => {
+        socket.join(roomId);
+        socket.to(roomId).broadcast.emit("user-connected", id, myname);
+
+        socket.on("messagesend", (message) => {
+            console.log(message);
+            io.to(roomId).emit("createMessage", message);
+        });
+
+        socket.on("tellName", (myname) => {
+            console.log(myname);
+            socket.to(roomId).broadcast.emit("AddName", myname);
+        });
+
+        socket.on("disconnect", () => {
+            socket.to(roomId).broadcast.emit("user-disconnected", id);
+        });
+    });
+});
+
+server.listen(process.env.PORT || 3000);
