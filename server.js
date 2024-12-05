@@ -5,11 +5,14 @@ const { v4: uuidv4 } = require("uuid");
 const io = require("socket.io")(server);
 const { ExpressPeerServer } = require("peer");
 const url = require("url");
+const cors = require('cors')
 const peerServer = ExpressPeerServer(server, {
     debug: true,
 });
 const path = require("path");
 
+
+app.use(cors())
 app.set("view engine", "ejs");
 app.use("/public", express.static(path.join(__dirname, "static")));
 app.use("/peerjs", peerServer);
