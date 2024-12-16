@@ -15,8 +15,8 @@ window.onload = () => {
 
 var peer = new Peer(undefined, {
     path: "/peerjs",
-    host: "/"
-    // port: "3000",
+    host: "/",
+    port: "3000",
 });
 
 let myVideoStream;
@@ -117,7 +117,7 @@ const cancel = () => {
 
 const copy = async() => {
     const roomid = document.getElementById("roomid").innerText;
-    const domen = "https://mini-zoom.onrender.com" // "http://localhost:3000"
+    const domen = "http://localhost:3000" // "https://mini-zoom.onrender.com"
     await navigator.clipboard.writeText(domen + "/join/" + roomid);
 };
 const invitebox = () => {
